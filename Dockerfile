@@ -5,10 +5,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN uv sync
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
-COPY . .
+RUN pip install uv
 
-EXPOSE 8080
+RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv lock
 
-CMD ["fastapi", "run", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --no-dev
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+ENTRYPOINT []
+
+CMD ["fastapi", "dev", "--host", "0.0.0.0", "src/main.py"]
