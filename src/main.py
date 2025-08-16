@@ -1,20 +1,34 @@
+import asyncio
+
 from fastapi import FastAPI
-from starlette.responses import RedirectResponse
-from uuid import UUID
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from models import PaymentRequest, ProcessorPayment
+
+from threading import Lock
+import time
 
 app = FastAPI()
 
 
-@app.get("/")
-async def read_root():
-    return RedirectResponse("/docs")
+x = {}
+lock = Lock()
+
+@app.get("/payments/health")
+async def health_check(request: Request):
+    ip = request.client.host
+    agora = time.time()
+    with lock:
+        y = x.get(ip, 0)
+        if agora - y < 5:
+            return JSONResponse(
+                status_code=429,
+                content={"message": "Too many requests", "code": 429}
+            )
+        x[ip] = agora
+    return {"message": "OK"}
 
 
-@app.get("/payments")
-async def get_payments(correlation_id: UUID, amount: float):
-    return {"message": "Hello World"}
-
-
-@app.post("/payments-summary")
-async def payment_summary():
-    return {"message": "Hello World"}
+@app.post("/payments", response_model=ProcessorPayment)
+async def process_payment(payment: PaymentRequest, status_code: int = 204):
+    return {"message": "OK"}
