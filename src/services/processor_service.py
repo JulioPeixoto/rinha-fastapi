@@ -9,7 +9,7 @@ class Processor:
         self.client_fallback = httpx.AsyncClient(base_url=settings.processor_fallback_url)
         
     async def process_payment(self, processor: str, payment: PaymentRequest):
-        url = self.default_url if processor == "default" else self.fallback_url
+        url = self.client_default if processor == "default" else self.client_fallback
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -21,7 +21,7 @@ class Processor:
             return response.json()
 
     async def health_check(self, processor: str):
-        url = self.default_url if processor == "default" else self.fallback_url
+        url = self.client_default if processor == "default" else self.client_fallback
         
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{url}/payments/service-health")
