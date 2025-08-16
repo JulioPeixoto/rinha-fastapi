@@ -11,14 +11,12 @@ ENV UV_TOOL_BIN_DIR=/usr/local/bin
 
 RUN pip install uv
 
-RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv lock
+COPY pyproject.toml uv.lock* ./
 
-RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+RUN uv sync --locked --no-install-project --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-ENTRYPOINT []
+COPY . .
 
-CMD ["fastapi", "dev", "--host", "0.0.0.0", "src/main.py"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]

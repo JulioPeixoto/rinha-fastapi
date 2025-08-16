@@ -13,7 +13,7 @@ class Payment:
         
     async def process_payment(self, payment_request: PaymentRequest):
         processor_payment = ProcessorPayment(
-            correlation_id=payment_request.correlation_id,
+            correlationId=payment_request.correlationId,
             amount=payment_request.amount,
             requestedAt=datetime.now()
         )
@@ -25,7 +25,7 @@ class Payment:
                 processor_payment
             )
             await self.redis.set_payment(
-                payment_request.correlation_id,
+                payment_request.correlationId,
                 payment_request.amount,
                 processor_used
             )
@@ -40,7 +40,7 @@ class Payment:
                 )
 
                 await self.redis.set_payment(
-                    payment_request.correlation_id,
+                    payment_request.correlationId,
                     payment_request.amount,
                     fallback_processor
                 )

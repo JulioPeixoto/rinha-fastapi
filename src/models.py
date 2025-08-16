@@ -6,14 +6,15 @@ from typing import Optional
 
 
 class PaymentRequest(BaseModel):
-    correlation_id: UUID
+    correlationId: UUID
     amount: float
 
-    
+
 class ProcessorPayment(BaseModel):
-    correlation_id: UUID
+    correlationId: UUID
     amount: float
     requestedAt: datetime
+
 
 class PaymentsSummary(BaseModel):
     default: dict[str, int | float]

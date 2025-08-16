@@ -6,5 +6,6 @@ class Settings(BaseSettings):
     processor_default_url: str = "http://payment-processor-default:8080"
     processor_fallback_url: str = "http://payment-processor-fallback:8080"
     instance_id: str = "API-1"
-    
+
+
 settings = Settings()
