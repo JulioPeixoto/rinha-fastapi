@@ -8,15 +8,19 @@ app = FastAPI()
 payment_service = Payment()
 
 
-@app.post("/payments", response_model=ProcessorPayment, status_code=200)
+@app.post("/payments", status_code=200)
 async def process_payment(payment: PaymentRequest):
     try:
-        await payment_service.process_payment(payment)
+        result = await payment_service.process_payment(payment)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/payments-summary")
-async def get_payments_summary(from_date: Optional[str] = None, to_date: Optional[str] = None):
+async def get_payments_summary(
+    from_date: Optional[str] = None, to_date: Optional[str] = None
+):
     try:
         from_date = datetime.fromisoformat(from_date) if from_date else None
         to_date = datetime.fromisoformat(to_date) if to_date else None
