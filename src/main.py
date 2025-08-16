@@ -1,34 +1,31 @@
-import asyncio
-
-from fastapi import FastAPI
-from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException
 from models import PaymentRequest, ProcessorPayment
-
-from threading import Lock
-import time
+from services.payment_service import Payment
+from typing import Optional
+from datetime import datetime
 
 app = FastAPI()
+payment_service = Payment()
 
 
-x = {}
-lock = Lock()
+@app.post("/payments", response_model=ProcessorPayment, status_code=204)
+async def process_payment(payment: PaymentRequest):
+    try:
+        await payment_service.process_payment(payment)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/payments/health")
-async def health_check(request: Request):
-    ip = request.client.host
-    agora = time.time()
-    with lock:
-        y = x.get(ip, 0)
-        if agora - y < 5:
-            return JSONResponse(
-                status_code=429,
-                content={"message": "Too many requests", "code": 429}
-            )
-        x[ip] = agora
-    return {"message": "OK"}
+@app.get("/payments/summary")
+async def get_payments_summary(from_date: Optional[str] = None, to_date: Optional[str] = None):
+    try:
+        from_date = datetime.fromisoformat(from_date) if from_date else None
+        to_date = datetime.fromisoformat(to_date) if to_date else None
+        summary = await payment_service.get_payments_summary(from_date, to_date)
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/payments", response_model=ProcessorPayment)
-async def process_payment(payment: PaymentRequest, status_code: int = 204):
-    return {"message": "OK"}
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
