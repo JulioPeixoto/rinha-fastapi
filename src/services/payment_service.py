@@ -17,7 +17,6 @@ class Payment:
             amount=payment_request.amount,
             requestedAt=datetime.now(),
         )
-        print(processor_payment)
         processor_used = await self._choose_processor()
         try:
             result = await self.processor.process_payment(
