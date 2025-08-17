@@ -1,7 +1,6 @@
-from services.processor_service import Processor
-from services.redis_service import RedisClient
-from health import HealthChecker
-from models import PaymentRequest, ProcessorPayment
+from .processor_service import Processor
+from .redis_service import RedisClient
+from ..models import PaymentRequest, ProcessorPayment
 from datetime import datetime
 
 
@@ -9,7 +8,6 @@ class Payment:
     def __init__(self):
         self.processor = Processor()
         self.redis = RedisClient()
-        self.health_checker = HealthChecker(self.processor)
 
     async def process_payment(self, payment_request: PaymentRequest):
         processor_payment = ProcessorPayment(
@@ -17,41 +15,22 @@ class Payment:
             amount=payment_request.amount,
             requestedAt=datetime.now(),
         )
-        processor_used = await self._choose_processor()
+        
         try:
-            result = await self.processor.process_payment(
-                processor_used, processor_payment
-            )
+            result = await self.processor.process_payment("default", processor_payment)
             await self.redis.set_payment(
-                payment_request.correlationId, payment_request.amount, processor_used
+                payment_request.correlationId, payment_request.amount, "default"
             )
             return result
-        except Exception as e:
-            fallback_processor = (
-                "fallback" if processor_used == "default" else "default"
-            )
-
+        except Exception:
             try:
-                result = await self.processor.process_payment(
-                    fallback_processor, processor_payment
-                )
-
+                result = await self.processor.process_payment("fallback", processor_payment)
                 await self.redis.set_payment(
-                    payment_request.correlationId,
-                    payment_request.amount,
-                    fallback_processor,
+                    payment_request.correlationId, payment_request.amount, "fallback"
                 )
-
                 return result
-
-            except Exception:
+            except Exception as e:
                 raise e
-
-    async def _choose_processor(self):
-        default_health = await self.health_checker.get_health_status("default")
-        if default_health and not default_health.get("failing", True):
-            return "default"
-        return "fallback"
 
     async def get_payments_summary(self, from_date=None, to_date=None):
         return await self.redis.get_payment_summary(from_date, to_date)

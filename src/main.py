@@ -1,34 +1,30 @@
 from fastapi import FastAPI, HTTPException
-from models import PaymentRequest, ProcessorPayment
-from services.payment_service import Payment
+from .models import PaymentRequest
+from .services.payment_service import Payment
 from typing import Optional
-from datetime import datetime
 
-app = FastAPI()
+app = FastAPI(
+    docs_url=None, 
+    redoc_url=None,
+    openapi_url=None
+)
 payment_service = Payment()
 
-
-@app.post("/payments", status_code=200)
+@app.post("/payments")
 async def process_payment(payment: PaymentRequest):
     try:
         result = await payment_service.process_payment(payment)
         return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed")
 
 @app.get("/payments-summary")
-async def get_payments_summary(
-    from_date: Optional[str] = None, to_date: Optional[str] = None
-):
+async def get_payments_summary(from_date: Optional[str] = None, to_date: Optional[str] = None):
     try:
-        from_date = datetime.fromisoformat(from_date) if from_date else None
-        to_date = datetime.fromisoformat(to_date) if to_date else None
-        summary = await payment_service.get_payments_summary(from_date, to_date)
-        return summary
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+        return await payment_service.get_payments_summary(from_date, to_date)
+    except Exception:
+        return {"default": {"totalRequests": 0, "totalAmount": 0.0}, 
+                "fallback": {"totalRequests": 0, "totalAmount": 0.0}}
 
 @app.get("/health")
 async def health_check():

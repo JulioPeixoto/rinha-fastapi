@@ -1,14 +1,16 @@
 [project]
 name = "rinha-fastapi"
 version = "0.1.0"
-description = "Add your description here"
+description = "Rinha Backend 2025"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi[standard]>=0.116.1",
+    "fastapi>=0.116.1",
+    "uvicorn[standard]>=0.32.0",
     "httpx>=0.28.1",
     "pydantic-settings>=2.10.1",
     "redis>=6.4.0",
+    "uvloop>=0.19.0",
 ]
 
 [tool.uv.workspace]
