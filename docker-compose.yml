@@ -16,8 +16,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.05"     
-          memory: "20MB"    
+          cpus: "0.15"     
+          memory: "30MB"    
 
   api1: &api
     image: rinha-fastapi:latest
@@ -37,8 +37,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.70"      
-          memory: "140MB"   
+          cpus: "0.60"      
+          memory: "145MB"   
 
   api2:
     <<: *api
@@ -63,8 +63,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.05"      
-          memory: "50MB"    
+          cpus: "0.15"      
+          memory: "30MB"    
 
 networks:
   backend:
