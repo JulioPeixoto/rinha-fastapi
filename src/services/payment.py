@@ -25,125 +25,94 @@ class Payment:
             "requestedAt": datetime.now().isoformat(),
         }
 
-        try:
-            await self.rabbitmq.publish_payment(payment_data)
+        await self.rabbitmq.publish_payment(payment_data)
 
-            return {
-                "correlationId": payment_request.correlationId,
-                "status": "accepted",
-                "message": "Payment accepted and queued for processing",
-            }
-
-        except Exception as e:
-            logger.error(
-                f"Failed to queue payment {payment_request.correlationId}: {e}"
-            )
-            return {
-                "correlationId": payment_request.correlationId,
-                "status": "accepted",
-                "message": "Payment accepted - processing may be delayed",
-            }
+        return {
+            "correlationId": payment_request.correlationId,
+            "status": "accepted",
+            "message": "Payment accepted and queued for processing",
+        }
 
     async def process_payment_from_queue(self, message: AbstractIncomingMessage):
         payment_data = None
 
+        payment_data = json.loads(message.body.decode())
+        correlation_id = payment_data["correlationId"]
+        amount = payment_data["amount"]
+
+        logger.info(f"Processing payment from queue: {correlation_id}")
+
+        processor_payment = ProcessorPayment(
+            correlationId=correlation_id,
+            amount=amount,
+            requestedAt=datetime.fromisoformat(payment_data["requestedAt"]),
+        )
+
+        processor_used = None
+
         try:
-            payment_data = json.loads(message.body.decode())
-            correlation_id = payment_data["correlationId"]
-            amount = payment_data["amount"]
+            await self.processor.process_payment("default", processor_payment)
+            await self.redis.set_payment(correlation_id, amount, "default")
+            processor_used = "default"
 
-            logger.info(f"Processing payment from queue: {correlation_id}")
-
-            processor_payment = ProcessorPayment(
-                correlationId=correlation_id,
-                amount=amount,
-                requestedAt=datetime.fromisoformat(payment_data["requestedAt"]),
+        except Exception as default_error:
+            logger.warning(
+                f"Default processor failed for {correlation_id}: {default_error}"
             )
-
-            processor_used = None
 
             try:
-                await self.processor.process_payment("default", processor_payment)
-                await self.redis.set_payment(correlation_id, amount, "default")
-                processor_used = "default"
+                await self.processor.process_payment("fallback", processor_payment)
+                await self.redis.set_payment(correlation_id, amount, "fallback")
+                processor_used = "fallback"
 
-            except Exception as default_error:
-                logger.warning(
-                    f"Default processor failed for {correlation_id}: {default_error}"
+            except Exception as fallback_error:
+                logger.error(
+                    f"Both processors failed for {correlation_id}: {fallback_error}"
                 )
 
-                try:
-                    await self.processor.process_payment("fallback", processor_payment)
-                    await self.redis.set_payment(correlation_id, amount, "fallback")
-                    processor_used = "fallback"
+                retry_count = message.headers.get("retry_count", 0)
+                max_retries = message.headers.get("max_retries", 5)
 
-                except Exception as fallback_error:
-                    logger.error(
-                        f"Both processors failed for {correlation_id}: {fallback_error}"
+                if retry_count < max_retries:
+                    logger.info(
+                        f"Rejecting message for retry: {correlation_id} (attempt {retry_count + 1})"
                     )
 
-                    retry_count = message.headers.get("retry_count", 0)
-                    max_retries = message.headers.get("max_retries", 5)
+                    await self.rabbitmq.publish_payment(payment_data)
 
-                    if retry_count < max_retries:
-                        logger.info(
-                            f"Rejecting message for retry: {correlation_id} (attempt {retry_count + 1})"
-                        )
+                    await message.ack()
+                    return
+                else:
+                    logger.error(
+                        f"Max retries exceeded for {correlation_id}, sending to DLQ"
+                    )
+                    await message.reject(requeue=False)
+                    return
 
-                        await self.rabbitmq.publish_payment(payment_data)
+        logger.info(
+            f"Payment processed successfully: {correlation_id} via {processor_used}"
+        )
+        await message.ack()
 
-                        await message.ack()
-                        return
-                    else:
-                        logger.error(
-                            f"Max retries exceeded for {correlation_id}, sending to DLQ"
-                        )
-                        await message.reject(requeue=False)
-                        return
+        correlation_id = (
+            payment_data.get("correlationId", "unknown") if payment_data else "unknown"
+        )
+        retry_count = message.headers.get("retry_count", 0) if message.headers else 0
+        max_retries = message.headers.get("max_retries", 5) if message.headers else 5
 
-            logger.info(
-                f"Payment processed successfully: {correlation_id} via {processor_used}"
-            )
-            await message.ack()
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in message: {e}")
+        if retry_count < max_retries:
+            await message.reject(requeue=True)
+        else:
             await message.reject(requeue=False)
-
-        except Exception as e:
-            logger.error(f"Unexpected error processing message: {e}")
-
-            correlation_id = (
-                payment_data.get("correlationId", "unknown")
-                if payment_data
-                else "unknown"
-            )
-            retry_count = (
-                message.headers.get("retry_count", 0) if message.headers else 0
-            )
-            max_retries = (
-                message.headers.get("max_retries", 5) if message.headers else 5
-            )
-
-            if retry_count < max_retries:
-                await message.reject(requeue=True)
-            else:
-                await message.reject(requeue=False)
 
     async def start_worker(self):
         while True:
             try:
                 await self.rabbitmq.connect()
                 await self.rabbitmq.consume_payments(self.process_payment_from_queue)
-
-                logger.info("Payment worker started, waiting for messages...")
-
-                while True:
-                    await asyncio.sleep(1)
-
-            except Exception as e:
-                logger.error(f"Worker error: {e}")
-                logger.info("Restarting worker in 5 seconds...")
+                await asyncio.Future()
+                
+            except Exception:
                 await asyncio.sleep(5)
 
     async def get_payments_summary(self, from_date=None, to_date=None):
