@@ -1,31 +1,26 @@
-import httpx
-from ..config import settings
-from ..models import PaymentRequest
 from datetime import datetime
 
+import httpx
+
+from ..models import PaymentRequest
+
 _client = None
+
 
 def get_client():
     global _client
     if _client is None:
         _client = httpx.AsyncClient(
-            timeout=httpx.Timeout(
-                connect=5.0,
-                read=8.0,
-                write=5.0,
-                pool=15.0
-            ),
-            limits=httpx.Limits(
-                max_connections=300,
-                max_keepalive_connections=150
-            )
+            timeout=httpx.Timeout(connect=5.0, read=8.0, write=5.0, pool=15.0),
+            limits=httpx.Limits(max_connections=300, max_keepalive_connections=150),
         )
     return _client
 
+
 class Processor:
     def __init__(self):
-        self.default_url = settings.processor_default_url
-        self.fallback_url = settings.processor_fallback_url
+        self.default_url = "http://payment-processor-default:8080"
+        self.fallback_url = "http://payment-processor-fallback:8080"
 
     async def process_payment(self, processor: str, payment: PaymentRequest):
         url = self.default_url if processor == "default" else self.fallback_url

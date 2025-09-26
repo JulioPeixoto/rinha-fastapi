@@ -20,7 +20,7 @@ services:
           memory: "30MB"    
 
   api1: &api
-    image: juliopeixoto/rinha-fastapi:latest    
+    build: .
     platform: linux/amd64
     hostname: api1
     depends_on:
@@ -28,6 +28,7 @@ services:
         condition: service_healthy
     environment:
       - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://user:password@rabbitmq:5672/
       - PROCESSOR_DEFAULT_URL=http://payment-processor-default:8080
       - PROCESSOR_FALLBACK_URL=http://payment-processor-fallback:8080
     networks:
@@ -44,6 +45,7 @@ services:
     hostname: api2
     environment:
       - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://user:password@rabbitmq:5672/
       - PROCESSOR_DEFAULT_URL=http://payment-processor-default:8080
       - PROCESSOR_FALLBACK_URL=http://payment-processor-fallback:8080
 
@@ -51,7 +53,7 @@ services:
     image: redis:7.2-alpine
     platform: linux/amd64
     container_name: redis
-    command: redis-server --save "" --appendonly
+    command: redis-server --save "" --appendonly yes
     networks:
       - backend
     healthcheck:
@@ -64,6 +66,24 @@ services:
         limits:
           cpus: "0.15"      
           memory: "30MB"    
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672"   
+      - "15672:15672" 
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: "100MB"
 
 networks:
   backend:
